@@ -1,85 +1,114 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Open Medicines Site</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            background-color: #f4f4f4;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Open Medicines Site</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+    }
 
-        #toolbar {
-            display: flex;
-            align-items: center;
-            padding: 10px;
-            background-color: #fff;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
+    body {
+      display: flex;
+      flex-direction: column;
+    }
 
-        #smpcIcon {
-            font-size: 24px;
-            cursor: pointer;
-            margin-right: 10px;
-        }
+    #toolbar {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      background-color: #fff;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
 
-        #linkInput {
-            display: none;
-            flex-grow: 1;
-            padding: 8px;
-            font-size: 16px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-        }
+    #smpcIcon {
+      font-size: 24px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
 
-        iframe {
-            flex-grow: 1;
-            width: 100%;
-            border: none;
-        }
+    #linkInput {
+      display: none;
+      flex-grow: 1;
+      padding: 8px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
 
-        /* Hide toolbar when printing */
-        @media print {
-            #toolbar {
-                display: none;
-            }
-        }
-    </style>
+    iframe {
+      flex-grow: 1;
+      width: 100%;
+      border: none;
+    }
+
+    @media print {
+      #toolbar {
+        display: none;
+      }
+    }
+
+  </style>
 </head>
 <body>
 
-    <div id="toolbar">
-        <span id="smpcIcon">📄</span>
-        <input type="text" id="linkInput" placeholder="Paste the SmPC link here and press Enter" />
-    </div>
+  <div id="toolbar">
+    <span id="smpcIcon" title="Enter URL">📄</span>
+    <input
+      type="text"
+      id="linkInput"
+      placeholder="Paste the SmPC link here and press Enter"
+    />
+  </div>
 
-    <iframe id="contentFrame" src="https://www.medicines.org.uk" title="Medicines.org.uk"></iframe>
+  <!-- Embed iframe -->
+  <iframe id="contentFrame" src="https://www.medicines.org.uk" title="Medicines.org.uk"></iframe>
 
-    <script>
-        const smpcIcon = document.getElementById('smpcIcon');
-        const linkInput = document.getElementById('linkInput');
-        const contentFrame = document.getElementById('contentFrame');
+  <script>
+    const smpcIcon = document.getElementById('smpcIcon');
+    const linkInput = document.getElementById('linkInput');
+    const contentFrame = document.getElementById('contentFrame');
 
-        smpcIcon.addEventListener('click', () => {
-            linkInput.style.display = linkInput.style.display === 'none' ? 'block' : 'none';
-            linkInput.focus();
+    smpcIcon.addEventListener('click', () => {
+      const isHidden = linkInput.style.display === 'none';
+      linkInput.style.display = isHidden ? 'block' : 'none';
+      if (isHidden) linkInput.focus();
+    });
+
+    linkInput.addEventListener('keypress', (event) => {
+      if (event.key === 'Enter') {
+        const url = linkInput.value.trim();
+        if (url) {
+          const fullUrl = url.startsWith('http') ? url : 'https://' + url;
+          contentFrame.src = fullUrl;
+        }
+      }
+    });
+
+    // Make sure links inside iframe open in the same iframe
+    contentFrame.onload = function () {
+      const iframeDoc = contentFrame.contentDocument || contentFrame.contentWindow.document;
+      const links = iframeDoc.getElementsByTagName('a');
+
+      for (let link of links) {
+        link.addEventListener('click', (e) => {
+          // Prevent the default link behavior
+          e.preventDefault();
+
+          // Get the href of the link
+          const href = link.href;
+
+          // Change iframe src to the new link
+          contentFrame.src = href;
         });
-
-        linkInput.addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                const url = linkInput.value.trim();
-                if (url) {
-                    contentFrame.src = url.startsWith('http') ? url : 'https://' + url;
-                }
-            }
-        });
-    </script>
+      }
+    };
+  </script>
 
 </body>
 </html>
