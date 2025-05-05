@@ -44,33 +44,46 @@
     iframe {
       flex-grow: 1;
       width: 100%;
-      border: none;
       height: 600px; /* Set a default height for the iframe */
+      border: none;
     }
 
     /* Print-specific styles */
     @media print {
-      #toolbar {
-        display: none;
+      /* Ensure the whole page is printed */
+      html, body {
+        height: auto !important; /* Allow full page print */
+        overflow: visible !important; /* Ensure no part of the page is hidden */
+        margin: 0;
+        padding: 0;
       }
 
       body {
-        display: block; /* Ensure the page is printed correctly */
+        display: block !important; /* Make sure the body is displayed as block */
       }
 
+      /* Hide toolbar on print */
+      #toolbar {
+        display: none !important;
+      }
+
+      /* Adjust iframe for printing */
       iframe {
-        height: auto; /* Allow iframe to expand to full page when printing */
+        height: auto !important; /* Ensure iframe expands to full page height */
         width: 100%;
         page-break-inside: avoid;
       }
 
-      /* Make sure everything, including the iframe content, is displayed */
-      html, body {
-        height: auto !important;
-        overflow: visible !important;
+      /* Avoid splitting content in the middle of the page */
+      .section {
+        page-break-inside: avoid;
+      }
+
+      /* Ensure the iframe content is not cut off */
+      iframe {
+        page-break-after: always; /* Force a new page after iframe */
       }
     }
-
   </style>
 </head>
 <body>
