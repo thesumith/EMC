@@ -45,11 +45,29 @@
       flex-grow: 1;
       width: 100%;
       border: none;
+      height: 600px; /* Set a default height for the iframe */
     }
 
+    /* Print-specific styles */
     @media print {
       #toolbar {
         display: none;
+      }
+
+      body {
+        display: block; /* Ensure the page is printed correctly */
+      }
+
+      iframe {
+        height: auto; /* Allow iframe to expand to full page when printing */
+        width: 100%;
+        page-break-inside: avoid;
+      }
+
+      /* Make sure everything, including the iframe content, is displayed */
+      html, body {
+        height: auto !important;
+        overflow: visible !important;
       }
     }
 
