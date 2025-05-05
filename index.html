@@ -44,46 +44,26 @@
     iframe {
       flex-grow: 1;
       width: 100%;
-      height: 600px; /* Set a default height for the iframe */
+      height: 600px;
       border: none;
     }
 
     /* Print-specific styles */
     @media print {
-      /* Ensure the whole page is printed */
-      html, body {
-        height: auto !important; /* Allow full page print */
-        overflow: visible !important; /* Ensure no part of the page is hidden */
-        margin: 0;
-        padding: 0;
+      #toolbar {
+        display: none;
       }
 
       body {
-        display: block !important; /* Make sure the body is displayed as block */
+        display: block;
       }
 
-      /* Hide toolbar on print */
-      #toolbar {
-        display: none !important;
-      }
-
-      /* Adjust iframe for printing */
       iframe {
-        height: auto !important; /* Ensure iframe expands to full page height */
+        height: auto !important;
         width: 100%;
-        page-break-inside: avoid;
-      }
-
-      /* Avoid splitting content in the middle of the page */
-      .section {
-        page-break-inside: avoid;
-      }
-
-      /* Ensure the iframe content is not cut off */
-      iframe {
-        page-break-after: always; /* Force a new page after iframe */
       }
     }
+
   </style>
 </head>
 <body>
@@ -95,6 +75,7 @@
       id="linkInput"
       placeholder="Paste the SmPC link here and press Enter"
     />
+    <button id="printBtn">🖨️ Print Page</button>
   </div>
 
   <!-- Embed iframe -->
@@ -104,13 +85,16 @@
     const smpcIcon = document.getElementById('smpcIcon');
     const linkInput = document.getElementById('linkInput');
     const contentFrame = document.getElementById('contentFrame');
+    const printBtn = document.getElementById('printBtn');
 
+    // Show/hide input field to paste URL
     smpcIcon.addEventListener('click', () => {
       const isHidden = linkInput.style.display === 'none';
       linkInput.style.display = isHidden ? 'block' : 'none';
       if (isHidden) linkInput.focus();
     });
 
+    // Load the new URL in iframe when user presses Enter
     linkInput.addEventListener('keypress', (event) => {
       if (event.key === 'Enter') {
         const url = linkInput.value.trim();
@@ -119,6 +103,17 @@
           contentFrame.src = fullUrl;
         }
       }
+    });
+
+    // Open iframe content in new window and print
+    printBtn.addEventListener('click', () => {
+      const iframeUrl = contentFrame.src;
+      const printWindow = window.open(iframeUrl, '_blank');
+      
+      // Wait for the new window to load and print
+      printWindow.onload = function () {
+        printWindow.print();
+      };
     });
 
     // Make sure links inside iframe open in the same iframe
