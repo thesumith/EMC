@@ -11,20 +11,75 @@
             padding: 0;
             height: 100vh;
             display: flex;
-            justify-content: center;
-            align-items: center;
+            flex-direction: column;
             background-color: #f4f4f4;
         }
+
+        #toolbar {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        #smpcIcon {
+            font-size: 24px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        #linkInput {
+            display: none;
+            flex-grow: 1;
+            padding: 8px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
         iframe {
+            flex-grow: 1;
             width: 100%;
-            height: 100%;
             border: none;
+        }
+
+        /* Hide toolbar when printing */
+        @media print {
+            #toolbar {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
 
-    <iframe src="https://www.medicines.org.uk" title="Medicines.org.uk"></iframe>
+    <div id="toolbar">
+        <span id="smpcIcon">📄</span>
+        <input type="text" id="linkInput" placeholder="Paste the SmPC link here and press Enter" />
+    </div>
+
+    <iframe id="contentFrame" src="https://www.medicines.org.uk" title="Medicines.org.uk"></iframe>
+
+    <script>
+        const smpcIcon = document.getElementById('smpcIcon');
+        const linkInput = document.getElementById('linkInput');
+        const contentFrame = document.getElementById('contentFrame');
+
+        smpcIcon.addEventListener('click', () => {
+            linkInput.style.display = linkInput.style.display === 'none' ? 'block' : 'none';
+            linkInput.focus();
+        });
+
+        linkInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                const url = linkInput.value.trim();
+                if (url) {
+                    contentFrame.src = url.startsWith('http') ? url : 'https://' + url;
+                }
+            }
+        });
+    </script>
 
 </body>
 </html>
