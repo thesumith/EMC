@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>EMC unlocked</title>
+  <script src="config.js"></script>
   <style>
     html, body {
       margin: 0;
@@ -18,9 +19,25 @@
       flex-direction: column;
     }
 
+    #setupNotice {
+      display: none;
+      padding: 12px 16px;
+      background: #fff3cd;
+      color: #664d03;
+      border-bottom: 1px solid #ffe69c;
+      line-height: 1.5;
+    }
+
+    #setupNotice code {
+      background: #fff;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
     #toolbar {
       display: flex;
       align-items: center;
+      gap: 8px;
       padding: 10px;
       background-color: #fff;
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
@@ -29,7 +46,6 @@
     #smpcIcon {
       font-size: 24px;
       cursor: pointer;
-      margin-right: 10px;
     }
 
     #linkInput {
@@ -41,32 +57,53 @@
       border-radius: 4px;
     }
 
+    #toolbar button {
+      padding: 6px 10px;
+      font-size: 14px;
+      cursor: pointer;
+      background: #f8f9fa;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    #toolbar button:hover {
+      background: #e9ecef;
+    }
+
+    #frameWrap {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+    }
+
     iframe {
-      flex-grow: 1;
+      flex: 1;
       width: 100%;
-      height: 600px;
       border: none;
     }
 
-    /* Print-specific styles */
     @media print {
+      #setupNotice,
       #toolbar {
-        display: none;
+        display: none !important;
       }
 
       body {
         display: block;
+        height: auto;
       }
 
-      iframe {
-        height: auto !important;
+      #frameWrap, iframe {
         width: 100%;
+        height: 200000px !important;
+        border: none;
       }
     }
-
   </style>
 </head>
 <body>
+
+  <div id="setupNotice"></div>
 
   <div id="toolbar">
     <span id="smpcIcon" title="Enter URL">📄</span>
@@ -75,65 +112,213 @@
       id="linkInput"
       placeholder="Paste the SmPC link here and press Enter"
     />
-    <button id="printBtn">🖨️ Print Page</button>
+    <button id="freshBtn" title="Reload in a brand-new iframe session">🔄 Fresh Session</button>
+    <button id="printBtn" title="Print the current page">🖨️ Print Page</button>
   </div>
 
-  <!-- Embed iframe -->
-  <iframe id="contentFrame" src="https://www.medicines.org.uk" title="Medicines.org.uk"></iframe>
+  <div id="frameWrap">
+    <iframe
+      id="contentFrame"
+      name="contentFrame"
+      title="Medicines.org.uk EMC"
+    ></iframe>
+  </div>
 
   <script>
+    /*
+      GitHub Pages is static — it cannot proxy medicines.org.uk itself.
+      The Cloudflare Worker (worker.js) does that job. config.js holds
+      your worker URL; the iframe loads EMC through it.
+    */
+
+    const PLACEHOLDER = 'YOUR_USERNAME';
+    const setupNotice = document.getElementById('setupNotice');
     const smpcIcon = document.getElementById('smpcIcon');
     const linkInput = document.getElementById('linkInput');
-    const contentFrame = document.getElementById('contentFrame');
+    const freshBtn = document.getElementById('freshBtn');
     const printBtn = document.getElementById('printBtn');
 
-    // Show/hide input field to paste URL
+    let contentFrame = document.getElementById('contentFrame');
+
+    function resolveProxyOrigin() {
+      const configured = (window.EMC_PROXY_URL || '').replace(/\/$/, '');
+      if (configured && !configured.includes(PLACEHOLDER)) {
+        return configured;
+      }
+      // Local dev via `npx wrangler dev` (default port 8787)
+      if (location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
+        return 'http://127.0.0.1:8787';
+      }
+      return configured;
+    }
+
+    const PROXY_ORIGIN = resolveProxyOrigin();
+    const HOME_PATH = '/emc';
+    const HOME_URL = PROXY_ORIGIN + HOME_PATH;
+
+    function showSetup(message) {
+      setupNotice.innerHTML = message;
+      setupNotice.style.display = 'block';
+      contentFrame.removeAttribute('src');
+    }
+
+    function proxyUrl(path) {
+      const p = path.startsWith('/') ? path : '/' + path;
+      return PROXY_ORIGIN.replace(/\/$/, '') + p;
+    }
+
+    function normalizeToPath(input) {
+      const raw = input.trim();
+      if (!raw) return null;
+
+      if (raw.startsWith('/')) {
+        return raw;
+      }
+
+      const fullUrl = raw.startsWith('http') ? raw : 'https://' + raw;
+      try {
+        const parsed = new URL(fullUrl);
+        if (parsed.hostname.endsWith('medicines.org.uk')) {
+          return parsed.pathname + parsed.search + parsed.hash;
+        }
+        if (PROXY_ORIGIN && parsed.origin === new URL(PROXY_ORIGIN).origin) {
+          return parsed.pathname + parsed.search + parsed.hash;
+        }
+      } catch (_) {
+        return null;
+      }
+
+      return null;
+    }
+
+    function withCacheBust(path) {
+      try {
+        const u = new URL(path, PROXY_ORIGIN);
+        u.searchParams.set('_t', Date.now().toString(36));
+        return u.pathname + u.search + u.hash;
+      } catch (_) {
+        return path;
+      }
+    }
+
+    function pathFromIframeSrc(src) {
+      if (!src) return HOME_PATH;
+      try {
+        const parsed = new URL(src);
+        return parsed.pathname + parsed.search + parsed.hash;
+      } catch (_) {
+        return HOME_PATH;
+      }
+    }
+
+    function rebuildIframe(path) {
+      const next = document.createElement('iframe');
+      next.id = 'contentFrame';
+      next.name = 'contentFrame';
+      next.title = 'Medicines.org.uk EMC';
+      next.src = proxyUrl(path);
+
+      contentFrame.replaceWith(next);
+      contentFrame = next;
+      attachIframeListeners();
+    }
+
+    function attachIframeListeners() {
+      contentFrame.addEventListener('load', () => {
+        try {
+          const doc =
+            contentFrame.contentDocument || contentFrame.contentWindow.document;
+          if (!doc) return;
+          for (const link of doc.getElementsByTagName('a')) {
+            if (link.target && link.target !== '_self') {
+              link.target = '_self';
+            }
+          }
+        } catch (_) {
+          /* cross-origin */
+        }
+      });
+    }
+
+    // ── Startup checks ─────────────────────────────────────────────
+
+    if (location.protocol === 'file:') {
+      showSetup(
+        'Do not open this file directly. Push to <strong>GitHub Pages</strong>, ' +
+        'or run <code>npx wrangler dev</code> plus <code>python3 -m http.server</code> locally.'
+      );
+    } else if (!PROXY_ORIGIN || PROXY_ORIGIN.includes(PLACEHOLDER)) {
+      showSetup(
+        'Set your Cloudflare Worker URL in <code>config.js</code>, then redeploy to GitHub Pages. ' +
+        'Deploy <code>worker.js</code> to Cloudflare Workers first (free).'
+      );
+    } else {
+      contentFrame.src = HOME_URL;
+      attachIframeListeners();
+    }
+
     smpcIcon.addEventListener('click', () => {
       const isHidden = linkInput.style.display === 'none';
       linkInput.style.display = isHidden ? 'block' : 'none';
       if (isHidden) linkInput.focus();
     });
 
-    // Load the new URL in iframe when user presses Enter
     linkInput.addEventListener('keypress', (event) => {
-      if (event.key === 'Enter') {
-        const url = linkInput.value.trim();
-        if (url) {
-          const fullUrl = url.startsWith('http') ? url : 'https://' + url;
-          contentFrame.src = fullUrl;
-        }
+      if (event.key !== 'Enter') return;
+      const path = normalizeToPath(linkInput.value);
+      if (!path) return;
+      contentFrame.src = proxyUrl(path);
+    });
+
+    freshBtn.addEventListener('click', () => {
+      const current = pathFromIframeSrc(contentFrame.src);
+      rebuildIframe(withCacheBust(current));
+    });
+
+    const FALLBACK_PRINT_HEIGHT_PX = 200000;
+    let savedHeight = null;
+
+    function measureIframeContentPx() {
+      try {
+        const doc =
+          contentFrame.contentDocument || contentFrame.contentWindow.document;
+        if (!doc) return null;
+        const h = Math.max(
+          doc.documentElement ? doc.documentElement.scrollHeight : 0,
+          doc.body ? doc.body.scrollHeight : 0
+        );
+        return h > 0 ? h : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    window.addEventListener('beforeprint', () => {
+      savedHeight = contentFrame.style.height;
+      const measured = measureIframeContentPx();
+      contentFrame.style.height =
+        (measured || FALLBACK_PRINT_HEIGHT_PX) + 'px';
+    });
+
+    window.addEventListener('afterprint', () => {
+      if (savedHeight !== null) {
+        contentFrame.style.height = savedHeight;
+        savedHeight = null;
       }
     });
 
-    // Open iframe content in new window and print
     printBtn.addEventListener('click', () => {
-      const iframeUrl = contentFrame.src;
-      const printWindow = window.open(iframeUrl, '_blank');
-      
-      // Wait for the new window to load and print
-      printWindow.onload = function () {
-        printWindow.print();
-      };
-    });
-
-    // Make sure links inside iframe open in the same iframe
-    contentFrame.onload = function () {
-      const iframeDoc = contentFrame.contentDocument || contentFrame.contentWindow.document;
-      const links = iframeDoc.getElementsByTagName('a');
-
-      for (let link of links) {
-        link.addEventListener('click', (e) => {
-          // Prevent the default link behavior
-          e.preventDefault();
-
-          // Get the href of the link
-          const href = link.href;
-
-          // Change iframe src to the new link
-          contentFrame.src = href;
-        });
+      try {
+        contentFrame.focus();
+        if (contentFrame.contentWindow && contentFrame.contentWindow.print) {
+          contentFrame.contentWindow.print();
+          return;
+        }
+      } catch (_) {
+        /* fall back */
       }
-    };
+      window.print();
+    });
   </script>
 
 </body>
